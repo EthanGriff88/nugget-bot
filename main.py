@@ -23,7 +23,7 @@ async def on_ready():
 for i in range(len(cogs)):
   cogs[i].setup(client)
 
-client.run(os.environ['TOKEN']) # bot token, hidden in env var
+client.run('OTMyMDg2NTI0MDAxMDAxNTg3.YeN3OA.-CI1gwuYZiR99m7gNOirAJDbHWo') # bot token, hidden in env var
 
 
 

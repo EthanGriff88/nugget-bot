@@ -17,17 +17,29 @@ class Music(commands.Cog):
   #     await ctx.voice_client.move_to(voice_channel)
 
   @commands.command(name='join', help = 'Connect the bot to a voice channel.')
-  async def join(self,ctx,channel=str): # add to a channel 
-    print(ctx.guild.voice_channels)
+  async def join(self,ctx,channel): # add to a channel 
+    # print(ctx.guild.voice_channels)
 
     vcs = ctx.guild.voice_channels
     for vc in vcs:
       if vc.name == channel:
-        await vc.connect()
+        if ctx.voice_client is None:
+          await vc.connect()
+          print("Joining vc.")
+        elif ctx.voice_client is not vc:
+          await ctx.voice_client.move_to(vc)
+          print("Moving to vc.")        
+        else:
+          await ctx.send("Already in that channel!")
 
-  @commands.command()
+        return
+
+    await ctx.send("Enter a real channel!")
+
+  @commands.command(name='play', help='Play a song from a youtube link or search phrase. Adds song to queue if one is already playing.')
   async def play(self,ctx,url):
-    ctx.voice_client.stop()
+    if ctx.voice_client.is_playing(): # stop playback if song is playing (replace with queue)
+      ctx.voice_client.stop()
 
     # youtube_dl.utils.bug_reports_message = lambda: ''
 
@@ -74,11 +86,8 @@ class Music(commands.Cog):
     if ctx.voice_client is None:
       await ctx.send("Not playing!")
     
-    elif ctx.voice_client.is_playing():
+    else:
       await ctx.voice_client.disconnect()
-
-  # alias for dc
-  # dc = disconnect() 
 
 def setup(client):
   client.add_cog(Music(client))
