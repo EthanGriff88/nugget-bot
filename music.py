@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 import youtube_dl
+from youtube_search import YoutubeSearch
 
 class Music(commands.Cog):
   def __init__(self, client):
@@ -16,53 +17,49 @@ class Music(commands.Cog):
   #   else:
   #     await ctx.voice_client.move_to(voice_channel)
 
-  @commands.command(name='join', help = 'Connect the bot to a voice channel.')
-  async def join(self,ctx,channel): # add to a channel 
-    # print(ctx.guild.voice_channels)
+  @commands.command() # TEST COMMAND
+  async def test(self,ctx,channel: discord.VoiceChannel): # add to a channel 
+    try:
+      await channel.connect()
+    except commands.errors.ChannelNotFound:
+      await ctx.send("Enter a real channel!")
 
+
+  @commands.command(name='join', help = 'Connect the bot to a voice channel.')
+  async def join(self,ctx,*,channel: discord.VoiceChannel):     
     vcs = ctx.guild.voice_channels
     for vc in vcs:
-      if vc.name == channel:
+      if vc == channel:
         if ctx.voice_client is None:
           await vc.connect()
-          print("Joining vc.")
-        elif ctx.voice_client is not vc:
+          print("Joining vc.") # debug message
+        elif ctx.voice_client.channel is not vc:
           await ctx.voice_client.move_to(vc)
-          print("Moving to vc.")        
+          print("Moving to vc.") # debug message      
         else:
           await ctx.send("Already in that channel!")
-
         return
+    
+  @join.error
+  async def join_error(self, ctx, error):
+    if isinstance(error, commands.ChannelNotFound): # Handles error when someone joins bot to a non-existent channel
+        await ctx.send('Enter a real channel!')
 
-    await ctx.send("Enter a real channel!")
 
-  @commands.command(name='play', help='Play a song from a youtube link or search phrase. Adds song to queue if one is already playing.')
-  async def play(self,ctx,url):
+  @commands.command(name='play', help='Play a song from a youtube/soundcloud link or search phrase. Adds song to queue if one is already playing.')
+  async def play(self,ctx,*,query):
     if ctx.voice_client.is_playing(): # stop playback if song is playing (replace with queue)
       ctx.voice_client.stop()
 
-    # youtube_dl.utils.bug_reports_message = lambda: ''
-
-    # ytdl_format_options = {
-    #     'format': 'bestaudio/best',
-    #     'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
-    #     'restrictfilenames': True,
-    #     'noplaylist': True,
-    #     'nocheckcertificate': True,
-    #     'ignoreerrors': False,
-    #     'logtostderr': False,
-    #     'quiet': True,
-    #     'no_warnings': True,
-    #     'default_search': 'auto',
-    #     'source_address': '0.0.0.0' # bind to ipv4 since ipv6 addresses cause issues sometimes
-    # }
-
-    # ffmpeg_options = {
-    #     'options': '-vn'
-    # }
+    # check if search query or url was provided
+    if query.startswith('https://'):
+      url = query
+    else:
+      results = YoutubeSearch(query, max_results=1).to_dict()
+      url = 'https://www.youtube.com' + results[0]['url_suffix']
 
     FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
-    YDL_OPTIONS = {'format': "bestaudio", 'quiet': True}
+    YDL_OPTIONS = {'format': 'bestaudio', 'quiet': True}
     vc = ctx.voice_client
 
     with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
@@ -73,21 +70,36 @@ class Music(commands.Cog):
 
   @commands.command()
   async def pause(self,ctx):
-    await ctx.voice_client.pause()
-    await ctx.send("Paused")
+    if ctx.voice_client is None:
+      await ctx.send("Not playing anything!")
+    elif ctx.voice_client.is_playing():
+      ctx.voice_client.pause()
+      await ctx.send("Paused ⏸️")
+    elif ctx.voice_client.is_paused():
+      await ctx.send("Already paused!")
+    else:
+      await ctx.send("Not playing anything!")
 
   @commands.command()
   async def resume(self,ctx):
-    await ctx.voice_client.resume()
-    await ctx.send("Resumed")
+    if ctx.voice_client is None:
+      await ctx.send("Nothing to resume!")
+    elif ctx.voice_client.is_paused():
+      ctx.voice_client.resume()
+      await ctx.send("Resuming ▶️")
+    elif ctx.voice_client.is_playing():
+      await ctx.send("Already playing!")
+    else:
+      await ctx.send("Nothing to resume!")
 
-  @commands.command()
+  @commands.command(name='stop', help='Stops playback and leaves the voice channel.', aliases=['dc','disconnect'])
   async def stop(self,ctx):
     if ctx.voice_client is None:
-      await ctx.send("Not playing!")
+      await ctx.send("Not in a vc!")
     
     else:
       await ctx.voice_client.disconnect()
+      print("Stopping playback and leaving vc.")
 
 def setup(client):
   client.add_cog(Music(client))
