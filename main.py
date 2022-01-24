@@ -19,7 +19,7 @@ async def on_ready():
     print(f'Logged in as {client.user} (ID: {client.user.id})')
     print('------')
     # await client.change_presence(activity = discord.Game('Fortnite'))
-    await client.change_presence(activity = discord.Activity(name='out for Whiskey Deltas', type = discord.ActivityType.watching))
+    await client.change_presence(activity = discord.Activity(name='Spanked Nuggets', type = discord.ActivityType.watching))
 
 for i in range(len(cogs)):
   cogs[i].setup(client)
