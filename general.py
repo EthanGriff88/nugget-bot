@@ -7,7 +7,7 @@ class General(commands.Cog):
 
   @commands.command()
   async def hello(self,ctx):
-    await ctx.send("Hello!")
+    await ctx.send("Well howdy, nugget!")
 
   @commands.command(name='status', help='Change the bot\'s activity message in discord.\
                     \n\nTypes:\n0 - Playing\n1 - Streaming\n2 - Listening to\n3 - Watching'\
