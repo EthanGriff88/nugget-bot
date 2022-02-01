@@ -21,9 +21,12 @@ async def on_ready():
     # await client.change_presence(activity = discord.Game('Fortnite'))
     await client.change_presence(activity = discord.Activity(name='Spanked Nuggets', type = discord.ActivityType.watching))
 
-for i in range(len(cogs)):
-  cogs[i].setup(client)
+async def setup():
+  await client.wait_until_ready()
+  for i in range(len(cogs)):
+    cogs[i].setup(client)
 
+client.loop.create_task(setup())
 client.run('OTMyMDg2NTI0MDAxMDAxNTg3.YeN3OA.-CI1gwuYZiR99m7gNOirAJDbHWo') # bot token, hidden in env var
 
 

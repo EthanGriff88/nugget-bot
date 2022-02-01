@@ -73,29 +73,23 @@ class MusicQueue:
 class Music(commands.Cog):
   def __init__(self, client):
     self.client = client
-    self.music_queue = MusicQueue()
-    # self.music_queue = {}
+    # self.music_queue = MusicQueue()
+    self.music_queue = {}
+    self.setup()
 
-  #   self.setup() # IMPLEMENT LATER
-
-  # def setup(self):
-  #   for guild in self.client.guilds:
-  #     self.music_queue[guild.id] = MusicQueue()
-
+  def setup(self): # initiate queue for each guild
+    for guild in self.client.guilds:
+      self.music_queue[guild.id] = MusicQueue()
     
   @commands.command() # TEST COMMAND
   async def test(self,ctx,*,item): # add to the queue
-    # self.music_queue.add(item)
-    # self.music_queue.add(item+item)
-    # self.music_queue.add(item+"dwadaw")
-    # self.music_queue.add(item)
-    # self.music_queue.add(item+"27328163")
-    # await ctx.send(f"{item} added to queue.")
-    # await ctx.send(f"{self.music_queue.get()} retrieved from queue.")
-    # await ctx.send(f"Queue count is {self.music_queue.count()}.")
-    # print(self.music_queue.list())
-    if ctx.voice_client.source is None:
-      print(f"{ctx.voice_client.source}")
+    self.music_queue[ctx.guild.id].add(item)
+    await ctx.send(f"{item} added to queue.")
+    await ctx.send(f"{self.music_queue[ctx.guild.id].get()} retrieved from queue.")
+    await ctx.send(f"Queue count is {self.music_queue[ctx.guild.id].count()}.")
+    await ctx.send(f"List of items:\n{self.music_queue[ctx.guild.id].list()}")
+    # if ctx.voice_client.source is None:
+    #   print(f"{ctx.voice_client.source}")
 
   @commands.command(name='join', help ='Connect the bot to a voice channel.', aliases=['connect'])
   async def join(self,ctx,*,vc: discord.VoiceChannel):     
@@ -129,7 +123,7 @@ class Music(commands.Cog):
   async def queue(self,ctx):
     # REPLACE WITH EMBED 
     NEWLINE = '\n'
-    await ctx.send(f"**Current queue ({self.music_queue.count()}): **\n{NEWLINE.join([x['title'] for x in self.music_queue.list()])}")
+    await ctx.send(f"**Current queue ({self.music_queue[ctx.guild.id].count()}): **\n{NEWLINE.join([x['title'] for x in self.music_queue[ctx.guild.id].list()])}")
 
   @queue.error
   async def queue_error(self, ctx, error):
@@ -140,23 +134,17 @@ class Music(commands.Cog):
     else:
       await ctx.send("An error occured!")
 
-  @commands.command(name='song', aliases=['nowplaying','np','currentsong'], help='Get the current song name.')
-  async def song(self,ctx):
+  @commands.command(name='nowplaying', aliases=['song','np','currentsong'], help='Get the current song name.')
+  async def nowplaying(self,ctx):
     try:
-      await ctx.send(f"**Now playing: **{self.music_queue.get()['title']}")
+      # REPLACE WITH EMBED
+      await ctx.send(f"**Now playing: **{self.music_queue[ctx.guild.id].get()['title']}") 
     except QueueIsEmpty:
       print("Error in Song - QueueIsEmpty")
       await ctx.send("Not playing anything!")
 
   @commands.command(name='play', help='Play a song from a youtube/soundcloud link or search phrase. Adds song to queue if one is already playing.')
-  async def play(self,ctx,*,query):
-    # vclient = ctx.voice_client
-    # user_vc = ctx.author.voice
-    # if user_vc is None and vclient is None:
-    #   raise NoVoiceClient
-    # elif vclient is None:
-    #   await user_vc.channel.connect()
-    
+  async def play(self,ctx,*,query):    
     # Check if user is in vc
     if ctx.author.voice is None and ctx.voice_client is None:
       raise NoVoiceClient
@@ -180,12 +168,10 @@ class Music(commands.Cog):
     # get song info and add to queue
     with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
       info = await self.client.loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
-      self.music_queue.add(info)
+      self.music_queue[ctx.guild.id].add(info)
       print("Song added to queue.")
-      self.curr_ctx = ctx # TEMP FIX, STORES CTX AS CLASS VARIABLE      
 
-      if self.music_queue.count()==1 and not ctx.voice_client.is_playing(): # run play_first if this is the first song
-        # await(self.play_first())
+      if self.music_queue[ctx.guild.id].count()==1 and not ctx.voice_client.is_playing(): # run play_song if this is the first song
         await(self.play_song(ctx))
       else:
         await ctx.send(f"{info['title']} added to queue.")
@@ -209,9 +195,10 @@ class Music(commands.Cog):
   
   async def play_song(self,ctx):
     # pull song from queue and play 
-    FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
+    # FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
+    FFMPEG_OPTIONS = {'options': '-vn'}
 
-    info = self.music_queue.get()
+    info = self.music_queue[ctx.guild.id].get()
     await ctx.send(f"**Now playing**: {info['title']}")
     url2 = info['formats'][0]['url']
     source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url2,**FFMPEG_OPTIONS))
@@ -223,9 +210,9 @@ class Music(commands.Cog):
     if error is not None:
       print(f"Error running coroutine from play_next: {error}")
     
-    self.music_queue.pop() # remove previous song
+    self.music_queue[ctx.guild.id].pop() # remove previous song
 
-    if not self.music_queue.is_empty(): # check if queue is empty first
+    if not self.music_queue[ctx.guild.id].is_empty(): # check if queue is empty first
       await self.play_song(ctx) # play next song
     else:
       print("Inactivity timer start.")
@@ -234,59 +221,6 @@ class Music(commands.Cog):
       if not ctx.voice_client.is_playing():
         print("Leaving vc due to inactivity.")
         await ctx.voice_client.disconnect()
-
-### ---------------------- OLD PLAY FUNCTIONS ---------------------- ###
-  # async def play_first(self):
-  #   # pull first song from queue and play 
-  #   FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
-  #   info = self.music_queue.get()
-  #   await self.curr_ctx.send(f"**Now playing**: {info['title']}")
-  #   url2 = info['formats'][0]['url']
-  #   # source = await discord.FFmpegOpusAudio.from_probe(url2,**FFMPEG_OPTIONS)
-  #   source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url2,**FFMPEG_OPTIONS))
-  #   source.volume = 0.5
-  #   self.curr_ctx.voice_client.play(source,after=self.play_after)
-  #   print("Playing song.")
-
-  # def play_after(self, error):
-  #   # coro = self.client.get_channel(934089689202323538).send('Song is done!') #temp id
-  #   coro = self.play_next()
-  #   fut = asyncio.run_coroutine_threadsafe(coro, self.client.loop)
-  #   try:
-  #       fut.result()
-  #   except:
-  #     if error is not None:
-  #       print(f"Error running coroutine: {error}")
-
-  # async def play_next(self,error):
-  #   if error is not None:
-  #     print(f"Error running coroutine from play_next: {error}")
-
-  #   # pull next song from queue and play 
-  #   FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
-
-  #   self.music_queue.pop() # remove previous song
-
-  #   vclient = discord.utils.get(self.client.guilds, id=self.curr_ctx.guild.id).voice_client # find current voice client (as ctx cant be passed in)
-  #   # vclient = self.curr_ctx.guild.voice_client
-
-  #   if not self.music_queue.is_empty(): # check if queue is empty first
-  #     info = self.music_queue.get()
-  #     await self.curr_ctx.send(f"**Now playing**: {info['title']}")
-  #     url2 = info['formats'][0]['url']
-  #     # source = await discord.FFmpegOpusAudio.from_probe(url2,**FFMPEG_OPTIONS)
-  #     source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url2,**FFMPEG_OPTIONS))
-  #     source.volume = 0.5
-  #     vclient.play(source,after=self.play_after)
-  #     print("Playing song.")
-  #   else:
-  #     print("Inactivity timer start.")
-  #     await asyncio.sleep(60) # BAD IMPLEMENTATION AS IT CONTINUES COUNTING AFTER NEW PLAY COMMAND, FIX THIS
-  #     print("Inactivity timer stop.")
-  #     if not vclient.is_playing():
-  #       print("Leaving vc due to inactivity.")
-  #       await vclient.disconnect()
-### ---------------------- OLD PLAY FUNCTIONS ---------------------- ###
 
   def check_same_vc(self,ctx): 
     '''Checks if user is in same vc as the bot. Raises NoVoiceClient or WrongVoiceChannel respectively.'''
@@ -299,7 +233,7 @@ class Music(commands.Cog):
   @commands.command(name='skip', help='Skips the current song.') # later add forceskip, checking for admin privilege (or similar), and voteskip
   async def skip(self,ctx):
     self.check_same_vc(ctx) # check user is in same vc
-    if self.music_queue.is_empty():
+    if self.music_queue[ctx.guild.id].is_empty():
       raise QueueIsEmpty
     else:
       ctx.voice_client.stop()
@@ -321,7 +255,7 @@ class Music(commands.Cog):
     self.check_same_vc(ctx) # check user is in same vc
     if ctx.voice_client.is_paused():
       raise AlreadyPaused
-    elif self.music_queue.is_empty():
+    elif self.music_queue[ctx.guild.id].is_empty():
       raise QueueIsEmpty
     elif ctx.voice_client.is_playing():
       ctx.voice_client.pause()
@@ -347,7 +281,7 @@ class Music(commands.Cog):
     self.check_same_vc(ctx) # check user is in same vc
     if ctx.voice_client.is_playing():
       raise AlreadyPlaying
-    elif self.music_queue.is_empty():
+    elif self.music_queue[ctx.guild.id].is_empty():
       raise QueueIsEmpty
     elif ctx.voice_client.is_paused():
       ctx.voice_client.resume()
@@ -373,7 +307,7 @@ class Music(commands.Cog):
     self.check_same_vc(ctx) # check user is in same vc
     print("Stopping playback and leaving vc.")
     await ctx.voice_client.disconnect()
-    self.music_queue.clear()
+    self.music_queue[ctx.guild.id].clear()
 
   @stop.error
   async def stop_error(self,ctx,error):
