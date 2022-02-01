@@ -74,6 +74,7 @@ class Music(commands.Cog):
   def __init__(self, client):
     self.client = client
     # self.music_queue = MusicQueue()
+    self.volume_max = 0.5
     self.music_queue = {}
     self.setup()
 
@@ -155,6 +156,8 @@ class Music(commands.Cog):
     elif ctx.voice_client.channel.id is not ctx.author.voice.channel.id:
       raise WrongVoiceChannel  
 
+    self.curr_ctx = ctx # FOR DEBUGGING
+
     # check if search query or url was provided
     query = query.strip("<>")
     if not re.match(URL_REGEX, query):
@@ -195,33 +198,44 @@ class Music(commands.Cog):
   
   async def play_song(self,ctx):
     # pull song from queue and play 
-    # FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
-    FFMPEG_OPTIONS = {'options': '-vn'}
+    FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
 
     info = self.music_queue[ctx.guild.id].get()
     await ctx.send(f"**Now playing**: {info['title']}")
     url2 = info['formats'][0]['url']
     source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url2,**FFMPEG_OPTIONS))
-    source.volume = 0.5
-    ctx.voice_client.play(source, after=lambda error: self.client.loop.create_task(self.play_next(ctx,error)))
+    source.volume = self.volume_max
+    # ctx.voice_client.play(source, after=lambda error: self.client.loop.create_task(self.play_next(ctx,error)))
+    ctx.voice_client.play(source, after=self.after)
     print("Playing song.")
+  
+  def after(self,error):
+    coro = self.play_next()
+    fut = asyncio.run_coroutine_threadsafe(coro, self.client.loop)
+    try:
+      fut.result()
+    except:
+      if error is not None:
+        print(f"Error running coroutine: {error}")
 
-  async def play_next(self,ctx,error):
-    if error is not None:
-      print(f"Error running coroutine from play_next: {error}")
+  # async def play_next(self,ctx,error):
+  async def play_next(self):
+    # if error is not None:
+    #   print(f"Error running coroutine from play_next: {error}")
     
-    self.music_queue[ctx.guild.id].pop() # remove previous song
+    self.music_queue[self.curr_ctx.guild.id].pop() # remove previous song
 
-    if not self.music_queue[ctx.guild.id].is_empty(): # check if queue is empty first
-      await self.play_song(ctx) # play next song
+    if not self.music_queue[self.curr_ctx.guild.id].is_empty(): # check if queue is empty first
+      await self.play_song(self.curr_ctx) # play next song
     else:
       print("Inactivity timer start.")
       await asyncio.sleep(60) # BAD IMPLEMENTATION AS IT CONTINUES COUNTING AFTER NEW PLAY COMMAND, FIX THIS (use asyncio Create/Destroy Task)
       print("Inactivity timer stop.")
-      if not ctx.voice_client.is_playing():
+      # if not ctx.voice_client.is_playing():
+      if self.music_queue[self.curr_ctx.guild.id].is_empty():
         print("Leaving vc due to inactivity.")
-        await ctx.voice_client.disconnect()
-
+        await self.curr_ctx.voice_client.disconnect()
+  
   def check_same_vc(self,ctx): 
     '''Checks if user is in same vc as the bot. Raises NoVoiceClient or WrongVoiceChannel respectively.'''
     if ctx.voice_client is None:
@@ -229,6 +243,20 @@ class Music(commands.Cog):
     
     if ctx.author.voice is None or ctx.voice_client.channel.id is not ctx.author.voice.channel.id:
       raise WrongVoiceChannel
+
+  @commands.command(name='volume', help='Change the player volume: 0-100%. Default is 50%', aliases=['vol'])
+  async def volume(self,ctx,volume_perc):
+    if not 0 <= float(volume_perc) <= 100:
+      print(f"Invalid volume given.")
+      return await ctx.send("Invalid input! Enter a number from 0-100!")      
+
+    volume_dec = float(volume_perc)/100
+    self.volume_max = volume_dec
+    if not self.music_queue[ctx.guild.id].is_empty():
+      ctx.voice_client.source.volume = volume_dec
+
+    print(f"Volume updated to {volume_perc}%")
+    await ctx.send("Volume updated!")
 
   @commands.command(name='skip', help='Skips the current song.') # later add forceskip, checking for admin privilege (or similar), and voteskip
   async def skip(self,ctx):
