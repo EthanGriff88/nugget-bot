@@ -1,5 +1,3 @@
-from distutils.log import error
-from token import NEWLINE
 import discord
 from discord.ext import commands
 import youtube_dl
@@ -67,13 +65,19 @@ class MusicQueue:
       raise QueueIsEmpty
     return [self._queue[i] for i in range(self.count())]
 
+  def upcoming(self):
+    if not self._queue:
+      raise QueueIsEmpty
+    newlist = self.list()
+    newlist.pop(0)
+    return newlist
+
   def clear(self):
     self._queue.clear()
 
 class Music(commands.Cog):
   def __init__(self, client):
     self.client = client
-    # self.music_queue = MusicQueue()
     self.volume_max = 0.5
     self.music_queue = {}
     self.setup()
@@ -82,7 +86,7 @@ class Music(commands.Cog):
     for guild in self.client.guilds:
       self.music_queue[guild.id] = MusicQueue()
     
-  @commands.command() # TEST COMMAND
+  @commands.command(hidden=True) # TEST COMMAND
   async def test(self,ctx,*,item): # add to the queue
     self.music_queue[ctx.guild.id].add(item)
     await ctx.send(f"{item} added to queue.")
@@ -120,11 +124,56 @@ class Music(commands.Cog):
     else:
       await ctx.send("Something went wrong!")
 
+  @commands.command(name='nowplaying', aliases=['song','np','currentsong'], help='Get the current song name.')
+  async def nowplaying(self,ctx):
+    song = self.music_queue[ctx.guild.id].get()
+    embed = discord.Embed(
+      colour=ctx.author.colour
+    )
+    embed.set_footer(text=f"Requested by {ctx.author.display_name}", icon_url=ctx.author.avatar_url)
+    if song['duration'] < 3600:
+      song_length = time.strftime("%M:%S",time.gmtime(song['duration']))
+    else:
+      song_length = time.strftime("%H:%M:%S",time.gmtime(song['duration']))
+    embed.add_field(name="Now Playing:", value=song['title']+f" **[{song_length}]**", inline=False)
+    
+    await ctx.send(embed=embed)
+
+  @nowplaying.error
+  async def nowplaying_error(self, ctx, error):
+    print(f"Error in NowPlaying - {error.__class__.__name__}: {error}")
+
+    if isinstance(error, QueueIsEmpty):
+      await ctx.send("Not playing anything!")
+    else:
+      await ctx.send("An error occured!")
+
   @commands.command(name='queue', aliases=['q','que'], help='List the current song queue.')
   async def queue(self,ctx):
     # REPLACE WITH EMBED 
+    # await ctx.send(f"**Current queue ({self.music_queue[ctx.guild.id].count()}): **\n{NEWLINE.join([x['title'] for x in self.music_queue[ctx.guild.id].list()])}")
     NEWLINE = '\n'
-    await ctx.send(f"**Current queue ({self.music_queue[ctx.guild.id].count()}): **\n{NEWLINE.join([x['title'] for x in self.music_queue[ctx.guild.id].list()])}")
+    queue = self.music_queue[ctx.guild.id]
+    song = queue.get()
+    embed = discord.Embed(
+      title="Queue",
+      colour=ctx.author.colour
+    )
+    embed.set_footer(text=f"Requested by {ctx.author.display_name}", icon_url=ctx.author.avatar_url)
+    if song['duration'] < 3600:
+      song_length = time.strftime("%M:%S",time.gmtime(song['duration']))
+    else:
+      song_length = time.strftime("%H:%M:%S",time.gmtime(song['duration']))
+    embed.add_field(name="Now Playing:", value=song['title']+f" **[{song_length}]**", inline=False)
+
+    if queue.count() > 1:
+      embed.add_field(
+        name="Next Up:",
+        value=NEWLINE.join(str(i+1)+". "+x['title'] for i,x in enumerate(queue.upcoming())),
+        inline=False
+      )
+    
+    await ctx.send(embed=embed)
 
   @queue.error
   async def queue_error(self, ctx, error):
@@ -135,15 +184,6 @@ class Music(commands.Cog):
     else:
       await ctx.send("An error occured!")
 
-  @commands.command(name='nowplaying', aliases=['song','np','currentsong'], help='Get the current song name.')
-  async def nowplaying(self,ctx):
-    try:
-      # REPLACE WITH EMBED
-      await ctx.send(f"**Now playing: **{self.music_queue[ctx.guild.id].get()['title']}") 
-    except QueueIsEmpty:
-      print("Error in Song - QueueIsEmpty")
-      await ctx.send("Not playing anything!")
-
   @commands.command(name='play', help='Play a song from a youtube/soundcloud link or search phrase. Adds song to queue if one is already playing.')
   async def play(self,ctx,*,query):    
     # Check if user is in vc
@@ -153,10 +193,13 @@ class Music(commands.Cog):
       raise WrongVoiceChannel
     elif ctx.voice_client is None:
       await ctx.author.voice.channel.connect()
-    elif ctx.voice_client.channel.id is not ctx.author.voice.channel.id:
+    elif ctx.voice_client.channel.id is not ctx.author.voice.channel.id: # REENABLE BOTH OF THESE IFS AFTER TESTING WITHOUT VC
       raise WrongVoiceChannel  
 
     self.curr_ctx = ctx # FOR DEBUGGING
+
+    # tell user that bot is searching
+    wait_msg = await ctx.send("Searching for song, give me a sec...")
 
     # check if search query or url was provided
     query = query.strip("<>")
@@ -173,6 +216,7 @@ class Music(commands.Cog):
       info = await self.client.loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
       self.music_queue[ctx.guild.id].add(info)
       print("Song added to queue.")
+      await wait_msg.delete() # delete searching message
 
       if self.music_queue[ctx.guild.id].count()==1 and not ctx.voice_client.is_playing(): # run play_song if this is the first song
         await(self.play_song(ctx))
@@ -248,15 +292,24 @@ class Music(commands.Cog):
   async def volume(self,ctx,volume_perc):
     if not 0 <= float(volume_perc) <= 100:
       print(f"Invalid volume given.")
-      return await ctx.send("Invalid input! Enter a number from 0-100!")      
+      return await ctx.send("Enter a number from 0-100!")      
 
     volume_dec = float(volume_perc)/100
     self.volume_max = volume_dec
     if not self.music_queue[ctx.guild.id].is_empty():
       ctx.voice_client.source.volume = volume_dec
 
-    print(f"Volume updated to {volume_perc}%")
-    await ctx.send("Volume updated!")
+    print(f"Volume set to {volume_perc}%")
+    await ctx.send(f"Volume set to {volume_perc}%")
+
+  @volume.error
+  async def volume_error(self, ctx, error):
+    print(f"Error in Volume - {error.__class__.__name__}: {error}")
+
+    if isinstance(error, commands.MissingRequiredArgument):
+      await ctx.send("Enter something to play!")
+    else:
+      await ctx.send("Something went wrong!")
 
   @commands.command(name='skip', help='Skips the current song.') # later add forceskip, checking for admin privilege (or similar), and voteskip
   async def skip(self,ctx):
