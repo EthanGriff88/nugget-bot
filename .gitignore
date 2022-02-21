@@ -132,4 +132,6 @@ dmypy.json
 .vscode
 
 # ffmpeg
-*ff
+ffmpeg
+ffplay
+ffprobe
