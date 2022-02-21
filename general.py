@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 import asyncio
+from random import choice
 
 class NoVoiceClient(commands.CommandError):
   pass
@@ -11,7 +12,16 @@ class General(commands.Cog):
 
   @commands.command(name='hello', help='Howdy!', aliases=['hi'])
   async def hello(self,ctx):
-    await ctx.send("Well howdy, nugget!")
+    msgs = ["Well howdy, nugget!","I'm on it, blackshoe!","Consider yourself spanked, nugget!"]
+    msg = choice(msgs)
+    await ctx.send(msg)
+
+  async def on_member_join(self, member):
+    greetings = ["Delta Sierra at 12 o'clock!","I've got a bogey on my tail!","It's a Charlie Foxtrot!"]
+    guild = member.guild
+    if guild.system_channel is not None:
+      msg = choice(greetings)
+      await guild.system_channel.send(f"{msg} Howdy {member.mention}!")
 
   @commands.command(name='status', help='Change the bot\'s activity message in discord.\
                     \n\nTypes:\n0 - Playing\n1 - Streaming\n2 - Listening to\n3 - Watching'\
@@ -24,7 +34,7 @@ class General(commands.Cog):
     except ValueError:
       await ctx.send("Enter a valid input, nugget!")
 
-  @commands.command(name='spank', help='Spank a bad nugget for specified time, default 60 seconds. Use @user or "user" to specify the bad nugget.')
+  @commands.command(name='spank', aliases=['timeout'], help='Spank a bad nugget for specified time, default 60 seconds. Use @user or "user" to specify the bad nugget.')
   @commands.has_guild_permissions(mute_members=True)
   async def spank(self, ctx, user: discord.Member, time = 60):
     if user.voice is None:
@@ -32,6 +42,8 @@ class General(commands.Cog):
     else:
       print(f"Spanking {user} for {time} secs.")
       await user.edit(reason="Spanked!", mute = True)
+      vc = user.voice.channel
+      await user.move_to(ctx.guild.afk_channel)
       msg = await ctx.send(f"Consider yourself spanked, {user.mention}! Come back in {time} seconds.")
       await msg.add_reaction("🤣")
       await msg.add_reaction("🗿")
@@ -39,6 +51,7 @@ class General(commands.Cog):
       await asyncio.sleep(time)
       print(f"Unspanking {user}.")
       await user.edit(mute = False) # unmute after specified time
+      await user.move_to(vc)
 
   @spank.error
   async def spank_error(self, ctx, error):
