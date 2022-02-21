@@ -1,8 +1,11 @@
 import discord
 from discord.ext import commands
 import os
+from dotenv import load_dotenv
 import music
 import general
+
+load_dotenv()
 
 # enable logging
 import logging
@@ -28,7 +31,7 @@ async def setup():
     cogs[i].setup(client)
 
 client.loop.create_task(setup())
-client.run('OTMyMDg2NTI0MDAxMDAxNTg3.YeN3OA.-CI1gwuYZiR99m7gNOirAJDbHWo') # bot token, hidden in env var
+client.run(os.getenv("TOKEN")) # bot token, hidden in env var
 
 
 
