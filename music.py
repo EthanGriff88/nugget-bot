@@ -116,13 +116,13 @@ class Music(commands.Cog):
     print(f"Error in Join - {error.__class__.__name__}: {error}")
 
     if isinstance(error, commands.MissingRequiredArgument):
-      await ctx.send("Enter a channel to join!")
+      await ctx.send("Enter a channel to join, nugget!")
     elif isinstance(error, commands.ChannelNotFound): # Handles error when someone joins bot to a non-existent channel
-      await ctx.send('Enter a real channel!')
+      await ctx.send('Enter a real channel, nugget!')
     elif isinstance(error, AlreadyConnectedToChannel):
-      await ctx.send("Already in that channel!")
+      await ctx.send("Already in that channel, nugget!")
     else:
-      await ctx.send("Something went wrong!")
+      await ctx.send("Something went wrong, nugget!")
 
   @commands.command(name='nowplaying', aliases=['song','np','currentsong'], help='Get the current song name.')
   async def nowplaying(self,ctx):
@@ -144,9 +144,9 @@ class Music(commands.Cog):
     print(f"Error in NowPlaying - {error.__class__.__name__}: {error}")
 
     if isinstance(error, QueueIsEmpty):
-      await ctx.send("Not playing anything!")
+      await ctx.send("Not playing anything, nugget!")
     else:
-      await ctx.send("An error occured!")
+      await ctx.send("An error occured, nugget!")
 
   @commands.command(name='queue', aliases=['q','que'], help='List the current song queue.')
   async def queue(self,ctx):
@@ -180,9 +180,9 @@ class Music(commands.Cog):
     print(f"Error in Queue - {error.__class__.__name__}: {error}")
 
     if isinstance(error, QueueIsEmpty):
-      await ctx.send("Queue empty!")
+      await ctx.send("Queue empty, nugget!")
     else:
-      await ctx.send("An error occured!")
+      await ctx.send("An error occured, nugget!")
 
   @commands.command(name='play', help='Play a song from a youtube/soundcloud link or search phrase. Adds song to queue if one is already playing.')
   async def play(self,ctx,*,query):    
@@ -199,7 +199,7 @@ class Music(commands.Cog):
     self.curr_ctx = ctx # FOR DEBUGGING
 
     # tell user that bot is searching
-    wait_msg = await ctx.send("Searching for song, give me a sec...")
+    wait_msg = await ctx.send("Searching for the song, this won't take longer than a whiskey delta...")
 
     # check if search query or url was provided
     query = query.strip("<>")
@@ -221,24 +221,24 @@ class Music(commands.Cog):
       if self.music_queue[ctx.guild.id].count()==1 and not ctx.voice_client.is_playing(): # run play_song if this is the first song
         await(self.play_song(ctx))
       else:
-        await ctx.send(f"{info['title']} added to queue.")
+        await ctx.send(f"{info['title']} added to the queue.")
 
   @play.error
   async def play_error(self, ctx, error):
     print(f"Error in Play - {error.__class__.__name__}: {error}")
 
     if isinstance(error, commands.MissingRequiredArgument):
-      await ctx.send("Enter something to play!")
+      await ctx.send("Enter something to play, nugget!")
     elif isinstance(error, youtube_dl.utils.UnsupportedError): # Handles error when invalid link is given
-      await ctx.send('Invalid URL!')
+      await ctx.send('Invalid URL, nugget!')
     elif isinstance(error, NoVoiceClient):
-      await ctx.send("You're not in a vc!")
+      await ctx.send("You're not in a vc, nugget!")
     elif isinstance(error, WrongVoiceChannel):
-      await ctx.send("You must be in my vc!")
+      await ctx.send("You must be in my vc, nugget!")
     elif isinstance(error, QueueIsFull):
-      await ctx.send("Queue full! Wait until the next song plays!")
+      await ctx.send("Queue full! Wait until the next song plays, nugget!")
     else:
-      await ctx.send("Something went wrong!")
+      await ctx.send("Something went wrong, nugget!")
   
   async def play_song(self,ctx):
     # pull song from queue and play 
@@ -292,7 +292,7 @@ class Music(commands.Cog):
   async def volume(self,ctx,volume_perc):
     if not 0 <= float(volume_perc) <= 100:
       print(f"Invalid volume given.")
-      return await ctx.send("Enter a number from 0-100!")      
+      return await ctx.send("Enter a number from 0-100, nugget!")      
 
     volume_dec = float(volume_perc)/100
     self.volume_max = volume_dec
@@ -307,9 +307,9 @@ class Music(commands.Cog):
     print(f"Error in Volume - {error.__class__.__name__}: {error}")
 
     if isinstance(error, commands.MissingRequiredArgument):
-      await ctx.send("Enter something to play!")
+      await ctx.send("Enter something to play, nugget!")
     else:
-      await ctx.send("Something went wrong!")
+      await ctx.send("Something went wrong, nugget!")
 
   @commands.command(name='skip', help='Skips the current song.') # later add forceskip, checking for admin privilege (or similar), and voteskip
   async def skip(self,ctx):
@@ -325,13 +325,13 @@ class Music(commands.Cog):
   async def skip_error(self, ctx, error):
     print(f"Error in Skip - {error.__class__.__name__}: {error}")
     if isinstance(error, NoVoiceClient) or isinstance(error, QueueIsEmpty):
-      await ctx.send("Not playing anything!")
+      await ctx.send("Not playing anything, nugget!")
     elif isinstance(error, WrongVoiceChannel):
-      await ctx.send("You must be in my vc!")
+      await ctx.send("You must be in my vc, nugget!")
     else:
-      await ctx.send("Something went wrong!")
+      await ctx.send("Something went wrong, nugget!")
 
-  @commands.command(name='pause', help='Pauses the current song. Resume with ?resume.')
+  @commands.command(name='pause', help='Pauses the current song.')
   async def pause(self,ctx):
     self.check_same_vc(ctx) # check user is in same vc
     if ctx.voice_client.is_paused():
@@ -349,13 +349,13 @@ class Music(commands.Cog):
   async def pause_error(self, ctx, error):
     print(f"Error in Pause - {error.__class__.__name__}: {error}")
     if isinstance(error, NoVoiceClient) or isinstance(error, QueueIsEmpty):
-      await ctx.send("Not playing anything!")
+      await ctx.send("Not playing anything, nugget!")
     elif isinstance(error, WrongVoiceChannel):
-      await ctx.send("You must be in my vc!")
+      await ctx.send("You must be in my vc, nugget!")
     elif isinstance(error, AlreadyPaused):
-      await ctx.send("Already paused!")
+      await ctx.send("Already paused, nugget!")
     else:
-      await ctx.send("Something went wrong!")
+      await ctx.send("Something went wrong, nugget!")
 
   @commands.command(name='resume', help="Resumes a paused song.")
   async def resume(self,ctx):
@@ -375,13 +375,13 @@ class Music(commands.Cog):
   async def resume_error(self, ctx, error):
     print(f"Error in Pause - {error.__class__.__name__}: {error}")
     if isinstance(error, NoVoiceClient) or isinstance(error, QueueIsEmpty):
-      await ctx.send("Nothing to resume!")
+      await ctx.send("Nothing to resume, nugget!")
     elif isinstance(error, WrongVoiceChannel):
-      await ctx.send("You must be in my vc!")
+      await ctx.send("You must be in my vc, nugget!")
     elif isinstance(error, AlreadyPlaying):
-      await ctx.send("Already playing!")
+      await ctx.send("Already playing, nugget!")
     else:
-      await ctx.send("Something went wrong!")
+      await ctx.send("Something went wrong, nugget!")
 
   @commands.command(name='stop', help='Stops playback and leaves the voice channel.', aliases=['dc','disconnect','leave'])
   async def stop(self,ctx):
@@ -394,9 +394,9 @@ class Music(commands.Cog):
   async def stop_error(self,ctx,error):
     print(f"Error in Pause - {error.__class__.__name__}: {error}")
     if isinstance(error, NoVoiceClient) or isinstance(error, QueueIsEmpty):
-      await ctx.send("Not playing anything!")
+      await ctx.send("Not playing anything, nugget!")
     elif isinstance(error, WrongVoiceChannel):
-      await ctx.send("You must be in my vc!")
+      await ctx.send("You must be in my vc, nugget!")
     
 
 def setup(client):
