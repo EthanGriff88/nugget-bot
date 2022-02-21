@@ -133,3 +133,6 @@ dmypy.json
 
 # ffmpeg
 ff*
+
+# don't ask me
+degenerate.py
