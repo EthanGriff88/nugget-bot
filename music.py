@@ -184,7 +184,7 @@ class Music(commands.Cog):
     else:
       await ctx.send("An error occured, nugget!")
 
-  @commands.command(name='play', help='Play a song from a youtube/soundcloud link or search phrase. Adds song to queue if one is already playing.')
+  @commands.command(name='play', help='Play a song from youtube/soundcloud. Adds song to queue if one is already playing.')
   async def play(self,ctx,*,query):    
     # Check if user is in vc
     if ctx.author.voice is None and ctx.voice_client is None:
@@ -273,7 +273,7 @@ class Music(commands.Cog):
       await self.play_song(self.curr_ctx) # play next song
     else:
       print("Inactivity timer start.")
-      await asyncio.sleep(60) # BAD IMPLEMENTATION AS IT CONTINUES COUNTING AFTER NEW PLAY COMMAND, FIX THIS (use asyncio Create/Destroy Task)
+      await asyncio.sleep(120) # BAD IMPLEMENTATION AS IT CONTINUES COUNTING AFTER NEW PLAY COMMAND, FIX THIS (use asyncio Create/Destroy Task)
       print("Inactivity timer stop.")
       # if not ctx.voice_client.is_playing():
       if self.music_queue[self.curr_ctx.guild.id].is_empty():
