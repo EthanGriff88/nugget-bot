@@ -34,20 +34,3 @@ async def setup():
 client.loop.create_task(setup())
 client.run(os.getenv("TOKEN")) # bot token, hidden in env var
 
-
-
-"""
-client = discord.Client()
-@client.event
-async def on_ready():
-  print("Logged in as {0.user}".format(client))
-
-@client.event
-async def on_message(message):
-  if message.author == client.user:
-    return
-
-  if message.content.startswith("$hello"):
-    await message.channel.send("Hello!")
-"""
-
