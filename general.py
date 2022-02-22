@@ -1,9 +1,13 @@
 import discord
 from discord.ext import commands
 import asyncio
+import datetime
 from random import choice
 
 class NoVoiceClient(commands.CommandError):
+  pass
+
+class HandshakeError(commands.CommandError):
   pass
 
 class General(commands.Cog):
@@ -47,31 +51,34 @@ class General(commands.Cog):
     else:
       await ctx.send("Something went wrong, nugget!")
 
+  async def timeout_user(self, *, user_id: int, guild_id: int, until): # discord.py hasn't implemented timeout, so instead must interface directly with discord API
+    headers = {"Authorization": f"Bot {self.client.http.token}"}
+    url = f"https://discord.com/api/v9/guilds/{guild_id}/members/{user_id}"
+    timeout = (datetime.datetime.utcnow() + datetime.timedelta(minutes=until)).isoformat()
+    json = {'communication_disabled_until': timeout}
+    async with self.client.session.patch(url, json=json, headers=headers) as session:
+        if session.status in range(200, 299):
+           return True
+        return False
 
-  @commands.command(name='spank', aliases=['timeout'], help='Spank a bad nugget for specified time, default 1 minute. Use @user or "user" to specify the bad nugget.')
+  @commands.command(name='spank', aliases=['timeout'], brief='Spank a bad nugget to silence them for a minute, or more!', help='Spank a bad nugget to stop them talking for specified time, default 1 minute. Use @user or "user" to specify the bad nugget.')
   @commands.has_guild_permissions(mute_members=True)
   async def spank(self, ctx, user: discord.Member, time = 1):
-    if user.voice is None:
-      raise NoVoiceClient
-    else:
+    handshake = await self.timeout_user(user_id=user.id, guild_id=ctx.guild.id, until=time) 
+    if handshake:
       if time == 1:
         print(f"Spanking {user} for {time} minute.")
         msg = await ctx.send(f"Consider yourself spanked, {user.mention}! Come back in {time} minute.")
       else:
         print(f"Spanking {user} for {time} minutes.")
         msg = await ctx.send(f"Consider yourself spanked, {user.mention}! Come back in {time} minutes.")
-      await user.edit(reason="Spanked!", mute = True)
-      vc = user.voice.channel
-      await user.move_to(ctx.guild.afk_channel) # ADD CHECK IF AFK CHANNEL EXISTS
-      
+    
       reactions = ["🤣","🗿","💯"]
       for emoji in reactions: 
           await msg.add_reaction(emoji)
-
-      await asyncio.sleep(time*60)
-      print(f"Unspanking {user}.")
-      await user.edit(mute = False) # unmute after specified time
-      await user.move_to(vc)
+    
+    else:
+      raise HandshakeError
 
   @spank.error
   async def spank_error(self, ctx, error):
@@ -81,12 +88,12 @@ class General(commands.Cog):
       await ctx.send("You forgot something, nugget! Try again!")
     elif isinstance(error, commands.MemberNotFound): 
       await ctx.send('Enter a real user, nugget!')
-    elif isinstance(error, NoVoiceClient):
-      await ctx.send("They ain't speaking, nugget!")
     elif isinstance(error, commands.CheckFailure):
       await ctx.send("We've got an imposter among us ඞඞඞඞඞ (You can't do that, nugget!)")
     elif isinstance(error, commands.BadArgument):
       await ctx.send("Fix your command, nugget!")
+    elif isinstance(error, HandshakeError):
+      await ctx.send("Something went wrong!")
     else:
       # await ctx.send("Something went wrong!")
       pass

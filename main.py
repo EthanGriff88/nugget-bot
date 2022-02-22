@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import music
 import general
 import degen
+import aiohttp
 
 load_dotenv()
 
@@ -17,6 +18,7 @@ cogs = [music, general, degen]
 
 # create client
 client = commands.Bot(command_prefix='?', intents = discord.Intents.all())
+client.session = aiohttp.ClientSession()
 
 @client.event
 async def on_ready():
@@ -24,7 +26,7 @@ async def on_ready():
     print("Now I'm all spooled up!")
     print('------')
     # await client.change_presence(activity = discord.Game('Fortnite'))
-    await client.change_presence(activity = discord.Activity(name='Spanked Nuggets', type = discord.ActivityType.watching))
+    await client.change_presence(activity = discord.Activity(name='Whiskey Deltas', type = discord.ActivityType.watching))
 
 async def setup():
   await client.wait_until_ready()
