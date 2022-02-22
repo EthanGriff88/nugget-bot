@@ -86,7 +86,7 @@ class Music(commands.Cog):
     for guild in self.client.guilds:
       self.music_queue[guild.id] = MusicQueue()
     
-  @commands.command(hidden=True) # TEST COMMAND
+  @commands.command(name='test', hidden='true', brief='brief', description='description', help='help') # TEST COMMAND
   async def test(self,ctx,*,item): # add to the queue
     self.music_queue[ctx.guild.id].add(item)
     await ctx.send(f"{item} added to queue.")
@@ -124,23 +124,30 @@ class Music(commands.Cog):
     else:
       await ctx.send("Something went wrong, nugget!")
 
-  @commands.command(name='nowplaying', aliases=['song','np','currentsong'], help='Get the current song name.')
-  async def nowplaying(self,ctx):
+  @commands.command(name='song', aliases=['nowplaying','np','currentsong'], help='Get the current song name.')
+  async def song(self,ctx):
     song = self.music_queue[ctx.guild.id].get()
-    embed = discord.Embed(
-      colour=ctx.author.colour
-    )
-    embed.set_footer(text=f"Requested by {ctx.author.display_name}", icon_url=ctx.author.avatar_url)
+
     if song['duration'] < 3600:
       song_length = time.strftime("%M:%S",time.gmtime(song['duration']))
     else:
       song_length = time.strftime("%H:%M:%S",time.gmtime(song['duration']))
-    embed.add_field(name="Now Playing:", value=song['title']+f" **[{song_length}]**", inline=False)
+
+    embed = discord.Embed(
+      colour=ctx.author.colour,
+      title='Now Playing:',
+      description = f"{song['title']} **[{song_length}]**\n{song['webpage_url']}"
+    )
+    embed.set_footer(text=f"Requested by {ctx.author.display_name}", icon_url=ctx.author.avatar_url)
+
+    
+    # embed.add_field(name="Now Playing:", value=song['title']+f" **[{song_length}]**", inline=False)
+    
     
     await ctx.send(embed=embed)
 
-  @nowplaying.error
-  async def nowplaying_error(self, ctx, error):
+  @song.error
+  async def song_error(self, ctx, error):
     print(f"Error in NowPlaying - {error.__class__.__name__}: {error}")
 
     if isinstance(error, QueueIsEmpty):
@@ -150,8 +157,6 @@ class Music(commands.Cog):
 
   @commands.command(name='queue', aliases=['q','que'], help='List the current song queue.')
   async def queue(self,ctx):
-    # REPLACE WITH EMBED 
-    # await ctx.send(f"**Current queue ({self.music_queue[ctx.guild.id].count()}): **\n{NEWLINE.join([x['title'] for x in self.music_queue[ctx.guild.id].list()])}")
     NEWLINE = '\n'
     queue = self.music_queue[ctx.guild.id]
     song = queue.get()
@@ -159,12 +164,13 @@ class Music(commands.Cog):
       title="Queue",
       colour=ctx.author.colour
     )
-    embed.set_footer(text=f"Requested by {ctx.author.display_name}", icon_url=ctx.author.avatar_url)
+
     if song['duration'] < 3600:
       song_length = time.strftime("%M:%S",time.gmtime(song['duration']))
     else:
       song_length = time.strftime("%H:%M:%S",time.gmtime(song['duration']))
-    embed.add_field(name="Now Playing:", value=song['title']+f" **[{song_length}]**", inline=False)
+      
+    embed.add_field(name="Now Playing:", value=song['title']+f" **[{song_length}]**\n{song['webpage_url']}", inline=False)
 
     if queue.count() > 1:
       embed.add_field(
@@ -173,6 +179,8 @@ class Music(commands.Cog):
         inline=False
       )
     
+    embed.set_footer(text=f"Requested by {ctx.author.display_name}", icon_url=ctx.author.avatar_url)
+
     await ctx.send(embed=embed)
 
   @queue.error
@@ -184,7 +192,7 @@ class Music(commands.Cog):
     else:
       await ctx.send("An error occured, nugget!")
 
-  @commands.command(name='play', help='Play a song from youtube/soundcloud. Adds song to queue if one is already playing.')
+  @commands.command(name='play', brief='Play a song from youtube/soundcloud.', help='Play a song from youtube/soundcloud. Adds song to queue if one is already playing.')
   async def play(self,ctx,*,query):    
     # Check if user is in vc
     if ctx.author.voice is None and ctx.voice_client is None:
@@ -245,7 +253,8 @@ class Music(commands.Cog):
     FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
 
     info = self.music_queue[ctx.guild.id].get()
-    await ctx.send(f"**Now playing**: {info['title']}")
+    # await ctx.send(f"**Now playing**: {info['title']}\n{info['webpage_url']}")
+    await self.song(ctx) # use embed instead
     url2 = info['formats'][0]['url']
     source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(url2,**FFMPEG_OPTIONS))
     source.volume = self.volume_max
@@ -288,7 +297,7 @@ class Music(commands.Cog):
     if ctx.author.voice is None or ctx.voice_client.channel.id is not ctx.author.voice.channel.id:
       raise WrongVoiceChannel
 
-  @commands.command(name='volume', help='Change the player volume: 0-100%. Default is 50%', aliases=['vol'])
+  @commands.command(name='volume', help='Change the player volume from 0-100%. Default is 50%', aliases=['vol'])
   async def volume(self,ctx,volume_perc):
     if not 0 <= float(volume_perc) <= 100:
       print(f"Invalid volume given.")
@@ -317,9 +326,14 @@ class Music(commands.Cog):
     if self.music_queue[ctx.guild.id].is_empty():
       raise QueueIsEmpty
     else:
-      ctx.voice_client.stop()
-      await ctx.send("Song skipped!")
-      print("Song skipped")
+      if ctx.author.guild_permissions.administrator or 'DJ' in [roles.name for roles in ctx.author.roles]: # forceskip if admin or dj
+        ctx.voice_client.stop()
+        await ctx.send("Song skipped!")
+        print("Song skipped")
+      else: # voteskip if normie
+        member_count = len(ctx.voice_client.channel.members)
+        # SEND A MESSAGE TO VOTESKIP, LET MEMBERS IN THE VC REACT TO THE MESSAGE, IF MORE THAN 50% SKIP, THEN SKIP, OTHERWISE DON'T
+
 
   @skip.error
   async def skip_error(self, ctx, error):
