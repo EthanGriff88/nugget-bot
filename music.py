@@ -1,11 +1,12 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import youtube_dl
 from youtube_search import YoutubeSearch
 import asyncio
 import time
 import re
 from collections import deque
+from math import floor
 
 URL_REGEX = r"(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'\".,<>?«»“”‘’]))"
 
@@ -31,6 +32,9 @@ class AlreadyPlaying(commands.CommandError):
   pass
 
 class InvalidCommand(commands.CommandError):
+  pass
+
+class SkipInProgress(commands.CommandError):
   pass
 
 class MusicQueue:
@@ -78,13 +82,17 @@ class MusicQueue:
 class Music(commands.Cog):
   def __init__(self, client):
     self.client = client
-    self.volume_max = 0.5
+    self.volume_max = 0.3
     self.music_queue = {}
+    self.voteskip_count = {}
+    self.voteskip_users = {}
     self.setup()
 
   def setup(self): # initiate queue for each guild
     for guild in self.client.guilds:
       self.music_queue[guild.id] = MusicQueue()
+      self.voteskip_count[guild.id] = 0
+      self.voteskip_users[guild.id] = []
     
   @commands.command(name='test', hidden='true', brief='brief', description='description', help='help') # TEST COMMAND
   async def test(self,ctx,*,item): # add to the queue
@@ -134,11 +142,11 @@ class Music(commands.Cog):
       song_length = time.strftime("%H:%M:%S",time.gmtime(song['duration']))
 
     embed = discord.Embed(
-      colour=ctx.author.colour,
+      colour=song['requested_by'].colour,
       title='Now Playing:',
       description = f"{song['title']} **[{song_length}]**\n{song['webpage_url']}"
     )
-    embed.set_footer(text=f"Requested by {ctx.author.display_name}", icon_url=ctx.author.avatar_url)
+    embed.set_footer(text=f"Requested by {song['requested_by'].display_name}", icon_url=song['requested_by'].avatar_url)
 
     
     # embed.add_field(name="Now Playing:", value=song['title']+f" **[{song_length}]**", inline=False)
@@ -179,7 +187,7 @@ class Music(commands.Cog):
         inline=False
       )
     
-    embed.set_footer(text=f"Requested by {ctx.author.display_name}", icon_url=ctx.author.avatar_url)
+    embed.set_footer(text=f"Requested by {song['requested_by'].display_name}", icon_url=song['requested_by'].avatar_url)
 
     await ctx.send(embed=embed)
 
@@ -222,6 +230,7 @@ class Music(commands.Cog):
     # get song info and add to queue
     with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
       info = await self.client.loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
+      info['requested_by'] = ctx.author
       self.music_queue[ctx.guild.id].add(info)
       print("Song added to queue.")
       await wait_msg.delete() # delete searching message
@@ -297,7 +306,7 @@ class Music(commands.Cog):
     if ctx.author.voice is None or ctx.voice_client.channel.id is not ctx.author.voice.channel.id:
       raise WrongVoiceChannel
 
-  @commands.command(name='volume', help='Change the player volume from 0-100%. Default is 50%', aliases=['vol'])
+  @commands.command(name='volume', help='Change the player volume from 0-100%. Default is 30%', aliases=['vol'])
   async def volume(self,ctx,volume_perc):
     if not 0 <= float(volume_perc) <= 100:
       print(f"Invalid volume given.")
@@ -320,20 +329,59 @@ class Music(commands.Cog):
     else:
       await ctx.send("Something went wrong, nugget!")
 
-  @commands.command(name='skip', help='Skips the current song.') # later add forceskip, checking for admin privilege (or similar), and voteskip
+  @commands.command(name='skip', help='Skips the current song. Starts voteskip if not DJ.') # later add forceskip, checking for admin privilege (or similar), and voteskip
   async def skip(self,ctx):
     self.check_same_vc(ctx) # check user is in same vc
     if self.music_queue[ctx.guild.id].is_empty():
       raise QueueIsEmpty
     else:
-      if ctx.author.guild_permissions.administrator or 'DJ' in [roles.name for roles in ctx.author.roles]: # forceskip if admin or dj
-        ctx.voice_client.stop()
-        await ctx.send("Song skipped!")
-        print("Song skipped")
+      queue = self.music_queue[ctx.guild.id]
+      song = queue.get()
+      song_requester = song['requested_by']
+      # if ctx.author.guild_permissions.administrator or 'DJ' in [roles.name for roles in ctx.author.roles] or ctx.author == song_requester: # forceskip if admin or dj 
+      if 1==2: # temp make all skips a voteskip
+        await self.skip_song(ctx)
+      elif self.voteskip_count[ctx.guild.id] > 0:
+        raise SkipInProgress
       else: # voteskip if normie
-        member_count = len(ctx.voice_client.channel.members)
-        # SEND A MESSAGE TO VOTESKIP, LET MEMBERS IN THE VC REACT TO THE MESSAGE, IF MORE THAN 50% SKIP, THEN SKIP, OTHERWISE DON'T
+        member_count = len(ctx.voice_client.channel.members) - 1 # remove 1 for the bot
+        self.voteskip_count[ctx.guild.id] += 1 # reset voteskip counter
+        self.voteskip_users[ctx.guild.id].append(ctx.author) # add voteskip user to list
+        votes_needed = round(member_count/2) - self.voteskip_count[ctx.guild.id]
+        votes = "votes" if votes_needed > 1 else "vote"
+        msg = await ctx.send(f"{ctx.author.mention} started a vote to skip the current song. Click ⏭️ to skip ⬇️." +
+          f"\n{(round(member_count/2) - self.voteskip_count[ctx.guild.id])} more {votes} needed.")
+        await msg.add_reaction("⏭️")
 
+        # Loop until voteskip is done
+        for i in range(20): # 12 * 5 = 60 secs
+          if queue.is_empty() or song != queue.get(): # Check if song has already ended before voteskip finished
+            await msg.delete()
+            self.voteskip_count[ctx.guild.id] = 0
+            self.voteskip_users[ctx.guild.id].clear()
+            return
+
+          votes_needed = round(member_count/2) - self.voteskip_count[ctx.guild.id] # update votes needed
+          votes = "votes" if votes_needed > 1 else "vote"
+          await msg.edit(content=f"{ctx.author.mention} started a vote to skip the current song. Click ⏭️ to skip ⬇️." +
+            f"\n{(round(member_count/2) - self.voteskip_count[ctx.guild.id])} more {votes} needed.")
+
+          if self.voteskip_count[ctx.guild.id] >= member_count/2: # allow skip if more than half vote
+            await msg.delete()
+            await self.skip_song(ctx)
+            self.voteskip_count[ctx.guild.id] = 0
+            self.voteskip_users[ctx.guild.id].clear()
+            return
+          # print(f"Voteskip count is: {self.voteskip_count[ctx.guild.id]}") # debugging
+          await asyncio.sleep(3)
+
+        # voteskip failed  
+        await msg.delete()
+        await ctx.send("Voteskip failed!")
+        self.voteskip_count[ctx.guild.id] = 0
+        self.voteskip_users[ctx.guild.id].clear()
+      
+        # SEND A MESSAGE TO VOTESKIP, LET MEMBERS IN THE VC REACT TO THE MESSAGE, IF MORE THAN 50% SKIP, THEN SKIP, OTHERWISE DON'T
 
   @skip.error
   async def skip_error(self, ctx, error):
@@ -342,8 +390,24 @@ class Music(commands.Cog):
       await ctx.send("Not playing anything, nugget!")
     elif isinstance(error, WrongVoiceChannel):
       await ctx.send("You must be in my vc, nugget!")
+    elif isinstance(error, SkipInProgress):
+      await ctx.send("Voteskip in progress! Vote above ⬆️")
     else:
       await ctx.send("Something went wrong, nugget!")
+
+  async def skip_song(self, ctx): 
+    ctx.voice_client.stop()
+    await ctx.send("Song skipped!")
+    print("Song skipped")
+
+  @commands.Cog.listener()
+  async def on_reaction_add(self, reaction, user): # Voteskip reaction checker
+    if user == self.client.user: # ignore bot reactions
+      return 
+
+    if reaction.emoji == "⏭️" and self.voteskip_count[user.guild.id] > 0 and user not in self.voteskip_users[user.guild.id]: 
+      self.voteskip_count[user.guild.id] += 1
+      self.voteskip_users[user.guild.id].append(user)
 
   @commands.command(name='pause', help='Pauses the current song.')
   async def pause(self,ctx):
