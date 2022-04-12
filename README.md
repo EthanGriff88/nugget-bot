@@ -1,4 +1,4 @@
-# nugget-bot
+# Nugget Bot
 A multi-purpose discord bot based off this funny Corki guy. Currently has a *(mostly)* fully functioning music player, basic moderation (in progress), and the ability to respond to different user messages. 
 
 Development paused for the moment while I focus on my studies.
