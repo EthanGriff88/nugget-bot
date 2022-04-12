@@ -8,6 +8,7 @@ Development paused for the moment while I focus on my studies.
 - Play from search term, or Youtube/Soundcloud URL
 - Pause/Stop (DJ)
 - Skip (voteskip for non-DJs)
+- Volume control (DJ)
 - Queue
 - Current song info
 - Timeout users
