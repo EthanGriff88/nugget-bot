@@ -13,6 +13,14 @@ Development paused for the moment while I focus on my studies.
 - Current song info
 - Timeout users
 
+## Todo 
+- Add a trivia game
+- Add a command that grants DJ permissions (currently checks if user has admin or 'DJ' role)
+- Consolidate redundant code, streamline everything
+
+## Known Bugs
+- Timeout/Spank command occasionally bugs out, needs investigation
+
 ## Requirements
 See *requirements.txt*
 
