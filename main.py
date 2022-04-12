@@ -4,7 +4,6 @@ import os
 from dotenv import load_dotenv
 import music
 import general
-import degen
 import aiohttp
 
 load_dotenv()
@@ -14,7 +13,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 # setup cogs
-cogs = [music, general, degen]
+cogs = [music, general]
 
 # create client
 client = commands.Bot(command_prefix='?', intents = discord.Intents.all())
